@@ -7,7 +7,7 @@ azimuth/elevation rotator.
 It exposes the Hamlib NET rotctl protocol on TCP port 4533 and translates
 position commands into the `atomcam_tools` HTTP command interface. The service
 uses only the Go standard library and its Docker image supports ARMv7l hosts
-such as Armbian/CasaOS on the Xunlei OneCloud.
+such as Armbian.
 
 ## Implemented rotctld commands
 
@@ -46,14 +46,14 @@ docker compose logs -f atomcam-rotctld
 Test the protocol from another machine or container:
 
 ```sh
-printf '\\dump_state\n' | nc CASAOS_IP 4533
-printf 'P 120 30\np\n' | nc CASAOS_IP 4533
+printf '\\dump_state\n' | nc HOST_IP 4533
+printf 'P 120 30\np\n' | nc HOST_IP 4533
 ```
 
 With Hamlib installed, test the same path used by SatNOGS:
 
 ```sh
-rotctl -m 2 -r CASAOS_IP:4533
+rotctl -m 2 -r HOST_IP:4533
 ```
 
 Then enter `P 120 30`, followed by `p`.
@@ -109,12 +109,12 @@ rotator. Enable the rotator with:
 ```dotenv
 SATNOGS_ROT_ENABLED=true
 SATNOGS_ROT_MODEL=ROT_MODEL_NETROTCTL
-SATNOGS_ROT_PORT=CASAOS_IP:4533
+SATNOGS_ROT_PORT=HOST_IP:4533
 SATNOGS_ROT_THRESHOLD=3
 ```
 
-Because port 4533 is published by `compose.yaml`, `CASAOS_IP` can be the LAN IP
-of the CasaOS host. Do not use `127.0.0.1`: inside the SatNOGS container that
+Because port 4533 is published by `compose.yaml`, `HOST_IP` can be the LAN IP
+of the host. Do not use `127.0.0.1`: inside the SatNOGS container that
 means the SatNOGS container itself.
 
 If both containers share a Docker network, do not publish the port and use the
@@ -189,7 +189,7 @@ reduce motor wear.
 
 ## ARMv7 image
 
-On the ARMv7 CasaOS host, a normal local build is enough:
+On the ARMv7 host, a normal local build is enough:
 
 ```sh
 docker compose build
