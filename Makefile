@@ -20,5 +20,5 @@ docker-build-armv7:
 
 package:
 	mkdir -p dist
-	tar --exclude='./dist' --exclude='./.git' --exclude='./atomcam-rotctld' --exclude='./coverage.out' \
+	tar --exclude='./dist' --exclude='./.git' --exclude='./coverage.out' \
 		-czf dist/atomcam-rotctld-src.tar.gz .

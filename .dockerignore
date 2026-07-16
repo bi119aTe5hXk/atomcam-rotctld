@@ -1,4 +1,5 @@
 .git
 .env
-atomcam-rotctld
-coverage.out
+/atomcam-rotctld
+/coverage.out
+/dist
