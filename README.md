@@ -214,8 +214,13 @@ Create a complete source archive on the development machine with:
 make package
 ```
 
-Then copy `dist/atomcam-rotctld-src.tar.gz` to the host, extract it into
-the deployment directory, and run:
+Then extract `dist/atomcam-rotctld-src.tar.gz` to the deployment directory:
+
+```sh
+tar -zxvf dist/atomcam-rotctld-src.tar.gz 
+```
+
+ and run:
 
 ```sh
 docker compose up -d --build --force-recreate
