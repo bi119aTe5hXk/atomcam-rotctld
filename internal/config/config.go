@@ -45,7 +45,7 @@ func Load() (Config, error) {
 		ResetOnStart:    envBool("RESET_ON_START", false),
 		ResetOnSession:  envBool("RESET_ON_SESSION", false),
 		ResetCameraPan:  envFloat("RESET_CAMERA_PAN", 180),
-		ResetCameraTilt: envFloat("RESET_CAMERA_TILT", 90),
+		ResetCameraTilt: envFloat("RESET_CAMERA_TILT", 0),
 		LogCommands:     envBool("LOG_COMMANDS", true),
 		ParkAzimuth:     envFloat("PARK_AZIMUTH", 0),
 		ParkElevation:   envFloat("PARK_ELEVATION", 0),

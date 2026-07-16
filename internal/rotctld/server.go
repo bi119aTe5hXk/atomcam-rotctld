@@ -25,6 +25,7 @@ type Rotator interface {
 	SetPosition(rotator.Position) error
 	Position() rotator.Position
 	Reset() error
+	SessionReset() error
 	Stop()
 	Park() error
 }
@@ -117,7 +118,7 @@ func (s *Server) triggerSessionReset() {
 	log.Print("Hamlib session opened; starting configured camera reset")
 	go func() {
 		defer s.resetInProgress.Store(false)
-		if err := s.rotator.Reset(); err != nil {
+		if err := s.rotator.SessionReset(); err != nil {
 			log.Printf("session camera reset failed: %v", err)
 		}
 	}()

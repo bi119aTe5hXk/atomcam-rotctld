@@ -30,6 +30,22 @@ func (d *blockingDevice) Position(context.Context) (atomcam.Position, error) {
 
 func (d *blockingDevice) Reset(context.Context) error { return nil }
 
+type resetBlockingDevice struct {
+	blockingDevice
+	resetStarted chan struct{}
+	resetRelease chan struct{}
+}
+
+func (d *resetBlockingDevice) Reset(ctx context.Context) error {
+	close(d.resetStarted)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-d.resetRelease:
+		return nil
+	}
+}
+
 func TestWorkerKeepsOnlyNewestPendingPosition(t *testing.T) {
 	device := &blockingDevice{moves: make(chan atomcam.Position, 3), release: make(chan struct{}, 3)}
 	controller := New(device, Transform{PanScale: 1, TiltHorizon: 90, TiltScale: -1}, Options{
@@ -83,6 +99,38 @@ func TestResetMovesToConfiguredRawCameraPosition(t *testing.T) {
 	move := waitForMove(t, device.moves)
 	if move.Pan != 42 || move.Tilt != 180 {
 		t.Fatalf("post-reset move = %+v", move)
+	}
+	device.release <- struct{}{}
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSessionResetSkipsPostResetMoveAndUsesNewestTarget(t *testing.T) {
+	device := &resetBlockingDevice{
+		blockingDevice: blockingDevice{moves: make(chan atomcam.Position, 1), release: make(chan struct{}, 1)},
+		resetStarted:   make(chan struct{}),
+		resetRelease:   make(chan struct{}),
+	}
+	resetPosition := CameraPosition{Pan: 180, Tilt: 90}
+	controller := New(device, Transform{PanOffset: 180, PanScale: 1, TiltHorizon: 0, TiltScale: 1}, Options{
+		Speed: 5, Priority: 1, MoveTimeout: time.Second, ResetTimeout: time.Second, ResetCameraPosition: &resetPosition,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	controller.Start(ctx)
+
+	result := make(chan error, 1)
+	go func() { result <- controller.SessionReset() }()
+	<-device.resetStarted
+	if err := controller.SetPosition(Position{Azimuth: 45, Elevation: 20}); err != nil {
+		t.Fatal(err)
+	}
+	close(device.resetRelease)
+
+	move := waitForMove(t, device.moves)
+	if move.Pan != 225 || move.Tilt != 20 {
+		t.Fatalf("session reset move = %+v, want satellite target", move)
 	}
 	device.release <- struct{}{}
 	if err := <-result; err != nil {

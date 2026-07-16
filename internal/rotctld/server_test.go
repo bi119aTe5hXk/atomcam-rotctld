@@ -33,7 +33,8 @@ func (f *fakeRotator) Reset() error {
 	}
 	return nil
 }
-func (f *fakeRotator) Stop() { f.stopped = true }
+func (f *fakeRotator) SessionReset() error { return f.Reset() }
+func (f *fakeRotator) Stop()               { f.stopped = true }
 func (f *fakeRotator) Park() error {
 	f.parked = true
 	return nil

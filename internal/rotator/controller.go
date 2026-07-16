@@ -129,6 +129,14 @@ func (c *Controller) Position() Position {
 }
 
 func (c *Controller) Reset() error {
+	return c.reset(true)
+}
+
+func (c *Controller) SessionReset() error {
+	return c.reset(false)
+}
+
+func (c *Controller) reset(moveToResetCameraPosition bool) error {
 	c.resetMu.Lock()
 	defer c.resetMu.Unlock()
 
@@ -154,7 +162,7 @@ func (c *Controller) Reset() error {
 	}
 	var devicePosition atomcam.Position
 	var err error
-	if c.resetCameraPosition != nil {
+	if moveToResetCameraPosition && c.resetCameraPosition != nil {
 		log.Printf("moving camera to post-reset raw position: pan=%.2f tilt=%.2f", c.resetCameraPosition.Pan, c.resetCameraPosition.Tilt)
 		devicePosition, err = c.device.Move(ctx, c.resetCameraPosition.Pan, c.resetCameraPosition.Tilt, c.speed, c.priority)
 	} else {

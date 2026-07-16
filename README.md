@@ -6,8 +6,7 @@ azimuth/elevation rotator.
 
 It exposes the Hamlib NET rotctl protocol on TCP port 4533 and translates
 position commands into the `atomcam_tools` HTTP command interface. The service
-uses only the Go standard library and its Docker image supports ARMv7l hosts
-such as Armbian.
+uses only the Go standard library and its Docker image supports ARMv7l hosts.
 
 ## Implemented rotctld commands
 
@@ -114,8 +113,8 @@ SATNOGS_ROT_THRESHOLD=3
 ```
 
 Because port 4533 is published by `compose.yaml`, `HOST_IP` can be the LAN IP
-of the host. Do not use `127.0.0.1`: inside the SatNOGS container that
-means the SatNOGS container itself.
+of the host. Do not use `127.0.0.1`: inside the SatNOGS container that means
+the SatNOGS container itself.
 
 If both containers share a Docker network, do not publish the port and use the
 service name instead:
@@ -166,21 +165,23 @@ Set `RESET_ON_SESSION=true` to start a reset when Hamlib opens a rotator
 session, which is normally when SatNOGS begins using the rotator for an
 observation. The reset runs asynchronously so Hamlib initialization can return
 quickly; movement commands wait for the reset to finish and then the newest
-target is executed.
+target is executed. Session reset intentionally skips the post-reset park
+move, so the camera does not go to pan 180 / tilt 0 before tracking the
+satellite.
 
-By default, after a reset the adapter sends the camera to the reference north
-pose:
+By default, after startup reset or manual `R 1`, the adapter sends the camera
+to a north-facing horizon park pose:
 
 ```dotenv
 RESET_ON_SESSION=true
 RESET_CAMERA_PAN=180
-RESET_CAMERA_TILT=90
+RESET_CAMERA_TILT=0
 ```
 
-This assumes raw pan 180 / tilt 90 is the camera's front-facing pose. If your
-camera reports different raw coordinates for that pose, set both values to your
-measured atomcam_tools coordinates. Leave both values at `-1` to disable the
-extra post-reset move.
+This assumes raw pan 180 is north and raw tilt 0 points the top-mounted antenna
+toward the horizon. If your camera reports different raw coordinates for that
+park pose, set both values to your measured atomcam_tools coordinates. Leave
+both values at `-1` to disable the extra post-reset move.
 
 Only one ATOM Cam move can run at a time. While it is moving, the adapter keeps
 only the newest SatNOGS target. Intermediate targets are discarded. It also
@@ -189,15 +190,15 @@ reduce motor wear.
 
 ## ARMv7 image
 
-On the ARMv7 host, a normal local build is enough:
+On an ARMv7 host, a normal local build is enough:
 
 ```sh
 docker compose build
 ```
 
 If the build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the source
-tree copied to the host is incomplete. The Docker build context must
-contain at least:
+tree copied to the host is incomplete. The Docker build context must contain at
+least:
 
 ```text
 cmd/

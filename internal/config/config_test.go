@@ -21,7 +21,7 @@ func TestDefaultReferencePoseFacesNorth(t *testing.T) {
 	if cfg.TiltScale != 1 {
 		t.Fatalf("TiltScale = %v, want 1", cfg.TiltScale)
 	}
-	if cfg.ResetCameraPan != 180 || cfg.ResetCameraTilt != 90 {
-		t.Fatalf("reset camera position = pan %v tilt %v, want pan 180 tilt 90", cfg.ResetCameraPan, cfg.ResetCameraTilt)
+	if cfg.ResetCameraPan != 180 || cfg.ResetCameraTilt != 0 {
+		t.Fatalf("reset camera position = pan %v tilt %v, want pan 180 tilt 0", cfg.ResetCameraPan, cfg.ResetCameraTilt)
 	}
 }
