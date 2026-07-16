@@ -1,4 +1,4 @@
-.PHONY: build test test-race fmt docker-build docker-build-armv7
+.PHONY: build test test-race fmt docker-build docker-build-armv7 package
 
 build:
 	go build -o atomcam-rotctld ./cmd/atomcam-rotctld
@@ -17,3 +17,8 @@ docker-build:
 
 docker-build-armv7:
 	docker buildx build --platform linux/arm/v7 --load -t atomcam-rotctld:armv7 .
+
+package:
+	mkdir -p dist
+	tar --exclude='./dist' --exclude='./.git' --exclude='./atomcam-rotctld' --exclude='./coverage.out' \
+		-czf dist/atomcam-rotctld-src.tar.gz .

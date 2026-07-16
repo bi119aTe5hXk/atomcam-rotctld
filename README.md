@@ -195,6 +195,32 @@ On the ARMv7 host, a normal local build is enough:
 docker compose build
 ```
 
+If the build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the source
+tree copied to the host is incomplete. The Docker build context must
+contain at least:
+
+```text
+cmd/
+internal/
+go.mod
+Dockerfile
+compose.yaml
+.env
+```
+
+Create a complete source archive on the development machine with:
+
+```sh
+make package
+```
+
+Then copy `dist/atomcam-rotctld-src.tar.gz` to the host, extract it into
+the deployment directory, and run:
+
+```sh
+docker compose up -d --build --force-recreate
+```
+
 To cross-build an ARMv7 image on another architecture:
 
 ```sh
