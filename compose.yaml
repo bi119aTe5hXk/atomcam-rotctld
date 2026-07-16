@@ -1,0 +1,30 @@
+services:
+  atomcam-rotctld:
+    build:
+      context: .
+      args:
+        VERSION: local
+    image: atomcam-rotctld:local
+    container_name: atomcam-rotctld
+    restart: unless-stopped
+    environment:
+      ATOMCAM_URL: ${ATOMCAM_URL:?Set ATOMCAM_URL in .env}
+      LISTEN_ADDRESS: 0.0.0.0:4533
+      PAN_OFFSET: ${PAN_OFFSET:-180}
+      PAN_SCALE: ${PAN_SCALE:-1}
+      TILT_HORIZON: ${TILT_HORIZON:-0}
+      TILT_SCALE: ${TILT_SCALE:-1}
+      MOVE_SPEED: ${MOVE_SPEED:-5}
+      MOVE_PRIORITY: ${MOVE_PRIORITY:-1}
+      MOVE_THRESHOLD: ${MOVE_THRESHOLD:-3}
+      MOVE_TIMEOUT: ${MOVE_TIMEOUT:-20s}
+      RESET_TIMEOUT: ${RESET_TIMEOUT:-90s}
+      RESET_ON_START: ${RESET_ON_START:-false}
+      RESET_ON_SESSION: ${RESET_ON_SESSION:-false}
+      RESET_CAMERA_PAN: ${RESET_CAMERA_PAN:-180}
+      RESET_CAMERA_TILT: ${RESET_CAMERA_TILT:-90}
+      LOG_COMMANDS: ${LOG_COMMANDS:-true}
+      PARK_AZIMUTH: ${PARK_AZIMUTH:-0}
+      PARK_ELEVATION: ${PARK_ELEVATION:-0}
+    ports:
+      - "4533:4533"
