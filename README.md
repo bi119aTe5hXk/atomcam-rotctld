@@ -174,12 +174,14 @@ RESET_ON_SESSION_MODE=after
 configured post-reset park pose. `before` resets before tracking starts; that
 reset runs asynchronously so Hamlib initialization can return quickly, and
 movement commands wait for the reset to finish before the newest target is
-executed. In `before` mode, session reset skips the post-reset park move so the
-camera goes directly to the satellite target.
+executed. `both` resets before tracking starts and again after tracking
+finishes. In `before` and `both` modes, the pre-session reset skips the
+post-reset park move so the camera goes directly to the satellite target.
 
 By default, after startup reset or manual `R 1`, the adapter sends the camera
 to a north-facing horizon park pose. The same park pose is also used after
-tracking when `RESET_ON_SESSION=true` and `RESET_ON_SESSION_MODE=after`:
+tracking when `RESET_ON_SESSION=true` and `RESET_ON_SESSION_MODE=after` or
+`both`:
 
 ```dotenv
 RESET_ON_SESSION=true

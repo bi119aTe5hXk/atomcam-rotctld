@@ -100,7 +100,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	trackingSession := false
 	beforeSessionResetTriggered := false
 	defer func() {
-		if s.resetOnSession && s.resetSessionMode == "after" && trackingSession {
+		if s.resetOnSession && resetsAfterSession(s.resetSessionMode) && trackingSession {
 			s.triggerPostSessionReset()
 		}
 	}()
@@ -114,7 +114,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 		if line == "\\dump_state" && s.resetOnSession {
 			trackingSession = true
-			if s.resetSessionMode == "before" && !beforeSessionResetTriggered {
+			if resetsBeforeSession(s.resetSessionMode) && !beforeSessionResetTriggered {
 				beforeSessionResetTriggered = true
 				s.triggerPreSessionReset()
 			}
@@ -124,6 +124,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 			return
 		}
 	}
+}
+
+func resetsBeforeSession(mode string) bool {
+	return mode == "before" || mode == "both"
+}
+
+func resetsAfterSession(mode string) bool {
+	return mode == "after" || mode == "both"
 }
 
 func (s *Server) triggerPreSessionReset() {

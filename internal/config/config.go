@@ -71,8 +71,8 @@ func Load() (Config, error) {
 	if cfg.MoveThreshold < 0 {
 		return Config{}, fmt.Errorf("MOVE_THRESHOLD must not be negative")
 	}
-	if cfg.ResetSessionMode != "before" && cfg.ResetSessionMode != "after" {
-		return Config{}, fmt.Errorf("RESET_ON_SESSION_MODE must be before or after")
+	if cfg.ResetSessionMode != "before" && cfg.ResetSessionMode != "after" && cfg.ResetSessionMode != "both" {
+		return Config{}, fmt.Errorf("RESET_ON_SESSION_MODE must be before, after, or both")
 	}
 	if (cfg.ResetCameraPan >= 0) != (cfg.ResetCameraTilt >= 0) {
 		return Config{}, fmt.Errorf("RESET_CAMERA_PAN and RESET_CAMERA_TILT must both be set or both be disabled with -1")
