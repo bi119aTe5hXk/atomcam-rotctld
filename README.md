@@ -161,16 +161,25 @@ The camera normally calibrates when it boots, so `RESET_ON_START` defaults to
 `false`. Set it to `true` only when every proxy restart should also recalibrate
 the camera.
 
-Set `RESET_ON_SESSION=true` to start a reset when Hamlib opens a rotator
-session, which is normally when SatNOGS begins using the rotator for an
-observation. The reset runs asynchronously so Hamlib initialization can return
-quickly; movement commands wait for the reset to finish and then the newest
-target is executed. Session reset intentionally skips the post-reset park
-move, so the camera does not go to pan 180 / tilt 0 before tracking the
-satellite.
+Set `RESET_ON_SESSION=true` to reset around each Hamlib rotator session, which
+is normally a SatNOGS observation. `RESET_ON_SESSION_MODE` controls when it
+runs:
+
+```dotenv
+RESET_ON_SESSION=true
+RESET_ON_SESSION_MODE=after
+```
+
+`after` is the default. It resets after tracking finishes, then moves to the
+configured post-reset park pose. `before` resets before tracking starts; that
+reset runs asynchronously so Hamlib initialization can return quickly, and
+movement commands wait for the reset to finish before the newest target is
+executed. In `before` mode, session reset skips the post-reset park move so the
+camera goes directly to the satellite target.
 
 By default, after startup reset or manual `R 1`, the adapter sends the camera
-to a north-facing horizon park pose:
+to a north-facing horizon park pose. The same park pose is also used after
+tracking when `RESET_ON_SESSION=true` and `RESET_ON_SESSION_MODE=after`:
 
 ```dotenv
 RESET_ON_SESSION=true

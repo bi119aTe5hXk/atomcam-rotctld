@@ -3,6 +3,7 @@ package rotctld
 import (
 	"bufio"
 	"bytes"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -11,11 +12,12 @@ import (
 )
 
 type fakeRotator struct {
-	position    rotator.Position
-	reset       bool
-	resetSignal chan struct{}
-	stopped     bool
-	parked      bool
+	position           rotator.Position
+	reset              bool
+	resetSignal        chan struct{}
+	sessionResetSignal chan struct{}
+	stopped            bool
+	parked             bool
 }
 
 func (f *fakeRotator) SetPosition(position rotator.Position) error {
@@ -33,8 +35,16 @@ func (f *fakeRotator) Reset() error {
 	}
 	return nil
 }
-func (f *fakeRotator) SessionReset() error { return f.Reset() }
-func (f *fakeRotator) Stop()               { f.stopped = true }
+func (f *fakeRotator) SessionReset() error {
+	if f.sessionResetSignal != nil {
+		select {
+		case f.sessionResetSignal <- struct{}{}:
+		default:
+		}
+	}
+	return nil
+}
+func (f *fakeRotator) Stop() { f.stopped = true }
 func (f *fakeRotator) Park() error {
 	f.parked = true
 	return nil
@@ -75,13 +85,56 @@ func TestControlCommands(t *testing.T) {
 }
 
 func TestSessionResetRunsAsynchronously(t *testing.T) {
+	rot := &fakeRotator{sessionResetSignal: make(chan struct{}, 1)}
+	server := New(":0", rot, Options{ResetOnSession: true, ResetSessionMode: "before"})
+	server.triggerPreSessionReset()
+	select {
+	case <-rot.sessionResetSignal:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for session reset")
+	}
+}
+
+func TestPostSessionResetRunsAfterDumpStateConnectionCloses(t *testing.T) {
 	rot := &fakeRotator{resetSignal: make(chan struct{}, 1)}
-	server := New(":0", rot, Options{ResetOnSession: true})
-	server.triggerSessionReset()
+	server := New(":0", rot, Options{ResetOnSession: true, ResetSessionMode: "after"})
+	client, serverConn := net.Pipe()
+	done := make(chan struct{})
+	go func() {
+		server.handleConnection(serverConn)
+		close(done)
+	}()
+
+	if _, err := client.Write([]byte("\\dump_state\n")); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(client)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(line) == "done" {
+			break
+		}
+	}
+	select {
+	case <-rot.resetSignal:
+		t.Fatal("post-session reset ran before connection closed")
+	default:
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for connection handler")
+	}
 	select {
 	case <-rot.resetSignal:
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for session reset")
+		t.Fatal("timed out waiting for post-session reset")
 	}
 }
 

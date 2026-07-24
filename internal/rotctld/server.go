@@ -31,24 +31,31 @@ type Rotator interface {
 }
 
 type Server struct {
-	address         string
-	rotator         Rotator
-	resetOnSession  bool
-	logCommands     bool
-	resetInProgress atomic.Bool
+	address          string
+	rotator          Rotator
+	resetOnSession   bool
+	resetSessionMode string
+	logCommands      bool
+	resetInProgress  atomic.Bool
 }
 
 type Options struct {
-	ResetOnSession bool
-	LogCommands    bool
+	ResetOnSession   bool
+	ResetSessionMode string
+	LogCommands      bool
 }
 
 func New(address string, rot Rotator, options Options) *Server {
+	resetSessionMode := options.ResetSessionMode
+	if resetSessionMode == "" {
+		resetSessionMode = "after"
+	}
 	return &Server{
-		address:        address,
-		rotator:        rot,
-		resetOnSession: options.ResetOnSession,
-		logCommands:    options.LogCommands,
+		address:          address,
+		rotator:          rot,
+		resetOnSession:   options.ResetOnSession,
+		resetSessionMode: resetSessionMode,
+		logCommands:      options.LogCommands,
 	}
 }
 
@@ -90,7 +97,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 	defer log.Printf("rotctld client disconnected: remote=%s", remote)
 	scanner := bufio.NewScanner(conn)
 	writer := bufio.NewWriter(conn)
-	sessionResetTriggered := false
+	trackingSession := false
+	beforeSessionResetTriggered := false
+	defer func() {
+		if s.resetOnSession && s.resetSessionMode == "after" && trackingSession {
+			s.triggerPostSessionReset()
+		}
+	}()
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -99,9 +112,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		if s.logCommands && line != "p" && line != "\\get_pos" {
 			log.Printf("rotctld command: remote=%s command=%q", remote, line)
 		}
-		if line == "\\dump_state" && s.resetOnSession && !sessionResetTriggered {
-			sessionResetTriggered = true
-			s.triggerSessionReset()
+		if line == "\\dump_state" && s.resetOnSession {
+			trackingSession = true
+			if s.resetSessionMode == "before" && !beforeSessionResetTriggered {
+				beforeSessionResetTriggered = true
+				s.triggerPreSessionReset()
+			}
 		}
 		closeConnection := s.handleCommand(line, writer)
 		if err := writer.Flush(); err != nil || closeConnection {
@@ -110,7 +126,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) triggerSessionReset() {
+func (s *Server) triggerPreSessionReset() {
 	if !s.resetInProgress.CompareAndSwap(false, true) {
 		log.Print("session reset already in progress; reusing current reset")
 		return
@@ -120,6 +136,20 @@ func (s *Server) triggerSessionReset() {
 		defer s.resetInProgress.Store(false)
 		if err := s.rotator.SessionReset(); err != nil {
 			log.Printf("session camera reset failed: %v", err)
+		}
+	}()
+}
+
+func (s *Server) triggerPostSessionReset() {
+	if !s.resetInProgress.CompareAndSwap(false, true) {
+		log.Print("post-session reset already in progress; reusing current reset")
+		return
+	}
+	log.Print("Hamlib session closed; starting configured camera reset")
+	go func() {
+		defer s.resetInProgress.Store(false)
+		if err := s.rotator.Reset(); err != nil {
+			log.Printf("post-session camera reset failed: %v", err)
 		}
 	}()
 }

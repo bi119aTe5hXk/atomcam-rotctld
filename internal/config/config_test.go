@@ -24,4 +24,7 @@ func TestDefaultReferencePoseFacesNorth(t *testing.T) {
 	if cfg.ResetCameraPan != 180 || cfg.ResetCameraTilt != 0 {
 		t.Fatalf("reset camera position = pan %v tilt %v, want pan 180 tilt 0", cfg.ResetCameraPan, cfg.ResetCameraTilt)
 	}
+	if cfg.ResetSessionMode != "after" {
+		t.Fatalf("ResetSessionMode = %q, want after", cfg.ResetSessionMode)
+	}
 }
