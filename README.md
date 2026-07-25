@@ -35,11 +35,24 @@ cp .env.example .env
 ATOMCAM_URL=http://192.168.1.80
 ```
 
-Build and start the independent container:
+Pull and start the independent container:
 
 ```sh
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose logs -f atomcam-rotctld
+```
+
+`compose.yaml` uses the published GHCR image by default:
+
+```dotenv
+ATOMCAM_ROTCTLD_IMAGE=ghcr.io/bi119ate5hxk/atomcam-rotctld:latest
+```
+
+For a local development build, use the build override:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
 Test the protocol from another machine or container:
@@ -199,17 +212,32 @@ only the newest SatNOGS target. Intermediate targets are discarded. It also
 applies `MOVE_THRESHOLD`, using circular distance around azimuth north, to
 reduce motor wear.
 
-## ARMv7 image
+## Docker images
 
-On an ARMv7 host, a normal local build is enough:
+Published images are available from GHCR:
 
 ```sh
-docker compose build
+docker pull ghcr.io/bi119ate5hxk/atomcam-rotctld:latest
 ```
 
-If the build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the source
-tree copied to the host is incomplete. The Docker build context must contain at
-least:
+The GitHub Actions workflow publishes `latest` from the default branch and also
+publishes branch, tag, and SHA tags. The image is built for:
+
+```text
+linux/amd64
+linux/arm64
+linux/arm/v7
+```
+
+For a local build on the host:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml build
+```
+
+If the local build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the
+source tree copied to the host is incomplete. The Docker build context must
+contain at least:
 
 ```text
 cmd/
@@ -217,6 +245,7 @@ internal/
 go.mod
 Dockerfile
 compose.yaml
+compose.build.yaml
 .env
 ```
 
@@ -229,20 +258,20 @@ make package
 Then extract `dist/atomcam-rotctld-src.tar.gz` to the deployment directory:
 
 ```sh
-tar -zxvf dist/atomcam-rotctld-src.tar.gz 
+tar -zxvf dist/atomcam-rotctld-src.tar.gz
 ```
 
- and run:
+To run the published image:
 
 ```sh
-docker compose up -d --build --force-recreate
+docker compose pull
+docker compose up -d --force-recreate
 ```
 
-To cross-build an ARMv7 image on another architecture:
+To build from the extracted source instead:
 
 ```sh
-docker buildx build --platform linux/arm/v7 --load \
-  -t atomcam-rotctld:armv7 .
+docker compose -f compose.yaml -f compose.build.yaml up -d --build --force-recreate
 ```
 
 ## Important limitations

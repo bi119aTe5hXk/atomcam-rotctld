@@ -3,6 +3,7 @@ FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG TARGETVARIANT
 ARG VERSION=dev
 
 WORKDIR /src
@@ -10,7 +11,7 @@ COPY go.mod ./
 COPY cmd ./cmd
 COPY internal ./internal
 
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
     -o /out/atomcam-rotctld ./cmd/atomcam-rotctld
 

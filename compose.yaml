@@ -1,10 +1,6 @@
 services:
   atomcam-rotctld:
-    build:
-      context: .
-      args:
-        VERSION: local
-    image: atomcam-rotctld:local
+    image: ${ATOMCAM_ROTCTLD_IMAGE:-ghcr.io/bi119ate5hxk/atomcam-rotctld:latest}
     container_name: atomcam-rotctld
     restart: unless-stopped
     environment:
