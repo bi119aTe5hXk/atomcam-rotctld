@@ -1,10 +1,6 @@
 services:
   atomcam-rotctld:
-    build:
-      context: .
-      args:
-        VERSION: local
-    image: atomcam-rotctld:local
+    image: ${ATOMCAM_ROTCTLD_IMAGE:-ghcr.io/bi119ate5hxk/atomcam-rotctld:latest}
     container_name: atomcam-rotctld
     restart: unless-stopped
     environment:
@@ -23,8 +19,9 @@ services:
       RESET_TIMEOUT: ${RESET_TIMEOUT:-90s}
       RESET_ON_START: ${RESET_ON_START:-false}
       RESET_ON_SESSION: ${RESET_ON_SESSION:-false}
+      RESET_ON_SESSION_MODE: ${RESET_ON_SESSION_MODE:-after}
       RESET_CAMERA_PAN: ${RESET_CAMERA_PAN:-180}
-      RESET_CAMERA_TILT: ${RESET_CAMERA_TILT:-90}
+      RESET_CAMERA_TILT: ${RESET_CAMERA_TILT:-0}
       LOG_COMMANDS: ${LOG_COMMANDS:-true}
       PARK_AZIMUTH: ${PARK_AZIMUTH:-0}
       PARK_ELEVATION: ${PARK_ELEVATION:-0}

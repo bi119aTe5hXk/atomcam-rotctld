@@ -6,8 +6,7 @@ azimuth/elevation rotator.
 
 It exposes the Hamlib NET rotctl protocol on TCP port 4533 and translates
 position commands into the `atomcam_tools` HTTP command interface. The service
-uses only the Go standard library and its Docker image supports ARMv7l hosts
-such as Armbian.
+uses only the Go standard library and its Docker image supports ARMv7l hosts.
 
 ## Implemented rotctld commands
 
@@ -36,10 +35,11 @@ cp .env.example .env
 ATOMCAM_URL=http://192.168.1.80
 ```
 
-Build and start the independent container:
+Pull and start the independent container:
 
 ```sh
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose logs -f atomcam-rotctld
 ```
 
@@ -132,8 +132,8 @@ SATNOGS_ROT_THRESHOLD=3
 ```
 
 Because port 4533 is published by `compose.yaml`, `HOST_IP` can be the LAN IP
-of the host. Do not use `127.0.0.1`: inside the SatNOGS container that
-means the SatNOGS container itself.
+of the host. Do not use `127.0.0.1`: inside the SatNOGS container that means
+the SatNOGS container itself.
 
 If both containers share a Docker network, do not publish the port and use the
 service name instead:
@@ -200,41 +200,69 @@ The camera normally calibrates when it boots, so `RESET_ON_START` defaults to
 `false`. Set it to `true` only when every proxy restart should also recalibrate
 the camera.
 
-Set `RESET_ON_SESSION=true` to start a reset when Hamlib opens a rotator
-session, which is normally when SatNOGS begins using the rotator for an
-observation. The reset runs asynchronously so Hamlib initialization can return
-quickly; movement commands wait for the reset to finish and then the newest
-target is executed.
+Set `RESET_ON_SESSION=true` to reset around each Hamlib rotator session, which
+is normally a SatNOGS observation. `RESET_ON_SESSION_MODE` controls when it
+runs:
 
-By default, after a reset the adapter sends the camera to the reference north
-pose:
+```dotenv
+RESET_ON_SESSION=true
+RESET_ON_SESSION_MODE=after
+```
+
+`after` is the default. It resets after tracking finishes, then moves to the
+configured post-reset park pose. `before` resets before tracking starts; that
+reset runs asynchronously so Hamlib initialization can return quickly, and
+movement commands wait for the reset to finish before the newest target is
+executed. `both` resets before tracking starts and again after tracking
+finishes. In `before` and `both` modes, the pre-session reset skips the
+post-reset park move so the camera goes directly to the satellite target.
+
+By default, after startup reset or manual `R 1`, the adapter sends the camera
+to a north-facing horizon park pose. The same park pose is also used after
+tracking when `RESET_ON_SESSION=true` and `RESET_ON_SESSION_MODE=after` or
+`both`:
 
 ```dotenv
 RESET_ON_SESSION=true
 RESET_CAMERA_PAN=180
-RESET_CAMERA_TILT=90
+RESET_CAMERA_TILT=0
 ```
 
-This assumes raw pan 180 / tilt 90 is the camera's front-facing pose. If your
-camera reports different raw coordinates for that pose, set both values to your
-measured atomcam_tools coordinates. Leave both values at `-1` to disable the
-extra post-reset move.
+This assumes raw pan 180 is north and raw tilt 0 points the top-mounted antenna
+toward the horizon. If your camera reports different raw coordinates for that
+park pose, set both values to your measured atomcam_tools coordinates. Leave
+both values at `-1` to disable the extra post-reset move.
 
 Only one ATOM Cam move can run at a time. While it is moving, the adapter keeps
 only the newest SatNOGS target. Intermediate targets are discarded. It also
 applies `MOVE_THRESHOLD`, using circular distance around azimuth north, to
 reduce motor wear.
 
-## ARMv7 image
+## Docker images
 
-On the ARMv7 host, a normal local build is enough:
+Published images are available from GHCR:
 
 ```sh
-docker compose build
+docker pull ghcr.io/bi119ate5hxk/atomcam-rotctld:latest
 ```
 
-If the build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the source
-tree copied to the host is incomplete. The Docker build context must
+The GitHub Actions workflow publishes `latest` from the default branch and also
+publishes branch, tag, and SHA tags. The image is built for:
+
+```text
+linux/amd64
+linux/arm64
+linux/arm/v7
+```
+
+For a local build on the host:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml build
+```
+
+If the local build fails at `COPY cmd ./cmd` or `COPY internal ./internal`, the
+source tree copied to the host is incomplete. The Docker build context must
 contain at least:
 
 ```text
@@ -243,6 +271,7 @@ internal/
 go.mod
 Dockerfile
 compose.yaml
+compose.build.yaml
 .env
 ```
 
@@ -252,18 +281,23 @@ Create a complete source archive on the development machine with:
 make package
 ```
 
-Then copy `dist/atomcam-rotctld-src.tar.gz` to the host, extract it into
-the deployment directory, and run:
+Then extract `dist/atomcam-rotctld-src.tar.gz` to the deployment directory:
 
 ```sh
-docker compose up -d --build --force-recreate
+tar -zxvf dist/atomcam-rotctld-src.tar.gz
 ```
 
-To cross-build an ARMv7 image on another architecture:
+To run the published image:
 
 ```sh
-docker buildx build --platform linux/arm/v7 --load \
-  -t atomcam-rotctld:armv7 .
+docker compose pull
+docker compose up -d --force-recreate
+```
+
+To build from the extracted source instead:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build --force-recreate
 ```
 
 ## Important limitations

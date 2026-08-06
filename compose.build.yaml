@@ -1,0 +1,7 @@
+services:
+  atomcam-rotctld:
+    build:
+      context: .
+      args:
+        VERSION: local
+    image: ${ATOMCAM_ROTCTLD_IMAGE:-atomcam-rotctld:local}

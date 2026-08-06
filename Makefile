@@ -1,3 +1,6 @@
+IMAGE ?= ghcr.io/bi119ate5hxk/atomcam-rotctld:latest
+LOCAL_IMAGE ?= atomcam-rotctld:local
+
 .PHONY: build test test-race fmt docker-build docker-build-armv7 package
 
 build:
@@ -13,12 +16,12 @@ fmt:
 	gofmt -w cmd internal
 
 docker-build:
-	docker build -t atomcam-rotctld:local .
+	docker build -t $(LOCAL_IMAGE) .
 
 docker-build-armv7:
-	docker buildx build --platform linux/arm/v7 --load -t atomcam-rotctld:armv7 .
+	docker buildx build --platform linux/arm/v7 --load -t $(IMAGE) .
 
 package:
 	mkdir -p dist
-	tar --exclude='./dist' --exclude='./.git' --exclude='./atomcam-rotctld' --exclude='./coverage.out' \
+	tar --exclude='./dist' --exclude='./.git' --exclude='./coverage.out' \
 		-czf dist/atomcam-rotctld-src.tar.gz .

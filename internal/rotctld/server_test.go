@@ -3,6 +3,7 @@ package rotctld
 import (
 	"bufio"
 	"bytes"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -86,13 +87,107 @@ func TestControlCommands(t *testing.T) {
 }
 
 func TestSessionResetRunsAsynchronously(t *testing.T) {
+	rot := &fakeRotator{sessionResetSignal: make(chan struct{}, 1)}
+	server := New(":0", rot, Options{ResetOnSession: true, ResetSessionMode: "before"})
+	server.triggerPreSessionReset()
+	select {
+	case <-rot.sessionResetSignal:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for session reset")
+	}
+}
+
+func TestPostSessionResetRunsAfterDumpStateConnectionCloses(t *testing.T) {
 	rot := &fakeRotator{resetSignal: make(chan struct{}, 1)}
-	server := New(":0", rot, Options{ResetOnSession: true})
-	server.triggerSessionReset()
+	server := New(":0", rot, Options{ResetOnSession: true, ResetSessionMode: "after"})
+	client, serverConn := net.Pipe()
+	done := make(chan struct{})
+	go func() {
+		server.handleConnection(serverConn)
+		close(done)
+	}()
+
+	if _, err := client.Write([]byte("\\dump_state\n")); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(client)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(line) == "done" {
+			break
+		}
+	}
+	select {
+	case <-rot.resetSignal:
+		t.Fatal("post-session reset ran before connection closed")
+	default:
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for connection handler")
+	}
 	select {
 	case <-rot.resetSignal:
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for session reset")
+		t.Fatal("timed out waiting for post-session reset")
+	}
+}
+
+func TestBothSessionResetRunsBeforeAndAfterConnection(t *testing.T) {
+	rot := &fakeRotator{
+		resetSignal:        make(chan struct{}, 1),
+		sessionResetSignal: make(chan struct{}, 1),
+	}
+	server := New(":0", rot, Options{ResetOnSession: true, ResetSessionMode: "both"})
+	client, serverConn := net.Pipe()
+	done := make(chan struct{})
+	go func() {
+		server.handleConnection(serverConn)
+		close(done)
+	}()
+
+	if _, err := client.Write([]byte("\\dump_state\n")); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(client)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(line) == "done" {
+			break
+		}
+	}
+	select {
+	case <-rot.sessionResetSignal:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pre-session reset")
+	}
+	select {
+	case <-rot.resetSignal:
+		t.Fatal("post-session reset ran before connection closed")
+	default:
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for connection handler")
+	}
+	select {
+	case <-rot.resetSignal:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for post-session reset")
 	}
 }
 
