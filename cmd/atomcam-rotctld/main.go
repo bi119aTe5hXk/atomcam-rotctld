@@ -16,6 +16,7 @@ import (
 	"atomcam-rotctld/internal/config"
 	"atomcam-rotctld/internal/rotator"
 	"atomcam-rotctld/internal/rotctld"
+	"atomcam-rotctld/internal/webui"
 )
 
 var version = "dev"
@@ -71,13 +72,32 @@ func main() {
 	}
 
 	log.Printf("starting atomcam-rotctld version=%s atomcam=%s", version, cfg.AtomCamURL)
+	errCh := make(chan error, 2)
+	webServer := webui.New(controller, webui.Options{
+		Address:       cfg.WebListenAddress,
+		AtomCamURL:    cfg.AtomCamURL,
+		RotctlAddress: cfg.ListenAddress,
+		Version:       version,
+		ManualStep:    cfg.ManualStep,
+	})
+	go func() {
+		errCh <- webServer.ListenAndServe(ctx)
+	}()
 	server := rotctld.New(cfg.ListenAddress, controller, rotctld.Options{
 		ResetOnSession:   cfg.ResetOnSession,
 		ResetSessionMode: cfg.ResetSessionMode,
 		LogCommands:      cfg.LogCommands,
 	})
-	if err := server.ListenAndServe(ctx); err != nil {
-		log.Fatal(err)
+	go func() {
+		errCh <- server.ListenAndServe(ctx)
+	}()
+	select {
+	case <-ctx.Done():
+	case err := <-errCh:
+		if err != nil {
+			cancel()
+			log.Fatal(err)
+		}
 	}
 }
 

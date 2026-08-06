@@ -27,4 +27,10 @@ func TestDefaultReferencePoseFacesNorth(t *testing.T) {
 	if cfg.ResetSessionMode != "after" {
 		t.Fatalf("ResetSessionMode = %q, want after", cfg.ResetSessionMode)
 	}
+	if cfg.WebListenAddress != "0.0.0.0:8080" {
+		t.Fatalf("WebListenAddress = %q, want 0.0.0.0:8080", cfg.WebListenAddress)
+	}
+	if cfg.ManualStep != 5 {
+		t.Fatalf("ManualStep = %v, want 5", cfg.ManualStep)
+	}
 }

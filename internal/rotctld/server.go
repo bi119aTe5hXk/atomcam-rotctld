@@ -26,6 +26,7 @@ type Rotator interface {
 	Position() rotator.Position
 	Reset() error
 	SessionReset() error
+	SetTracking(bool)
 	Stop()
 	Park() error
 }
@@ -103,6 +104,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		if s.resetOnSession && resetsAfterSession(s.resetSessionMode) && trackingSession {
 			s.triggerPostSessionReset()
 		}
+		if trackingSession {
+			s.rotator.SetTracking(false)
+		}
 	}()
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -112,9 +116,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		if s.logCommands && line != "p" && line != "\\get_pos" {
 			log.Printf("rotctld command: remote=%s command=%q", remote, line)
 		}
-		if line == "\\dump_state" && s.resetOnSession {
-			trackingSession = true
-			if resetsBeforeSession(s.resetSessionMode) && !beforeSessionResetTriggered {
+		if line == "\\dump_state" {
+			if !trackingSession {
+				trackingSession = true
+				s.rotator.SetTracking(true)
+			}
+			if s.resetOnSession && resetsBeforeSession(s.resetSessionMode) && !beforeSessionResetTriggered {
 				beforeSessionResetTriggered = true
 				s.triggerPreSessionReset()
 			}

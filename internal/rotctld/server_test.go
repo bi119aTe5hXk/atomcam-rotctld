@@ -18,6 +18,7 @@ type fakeRotator struct {
 	sessionResetSignal chan struct{}
 	stopped            bool
 	parked             bool
+	tracking           bool
 }
 
 func (f *fakeRotator) SetPosition(position rotator.Position) error {
@@ -44,7 +45,8 @@ func (f *fakeRotator) SessionReset() error {
 	}
 	return nil
 }
-func (f *fakeRotator) Stop() { f.stopped = true }
+func (f *fakeRotator) SetTracking(tracking bool) { f.tracking = tracking }
+func (f *fakeRotator) Stop()                     { f.stopped = true }
 func (f *fakeRotator) Park() error {
 	f.parked = true
 	return nil
