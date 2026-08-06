@@ -29,6 +29,7 @@ type Controller struct {
 
 	mu            sync.RWMutex
 	resetMu       sync.Mutex
+	statusMu      sync.Mutex
 	submitMu      sync.Mutex
 	requested     Position
 	requestedOK   bool
@@ -43,6 +44,8 @@ type Controller struct {
 	pending       chan Position
 	workerContext context.Context
 }
+
+const statusRefreshTimeout = 750 * time.Millisecond
 
 type Status struct {
 	State       string
@@ -102,6 +105,14 @@ func (c *Controller) Start(ctx context.Context) {
 }
 
 func (c *Controller) SetPosition(pos Position) error {
+	return c.setPosition(pos, false)
+}
+
+func (c *Controller) SetPositionForced(pos Position) error {
+	return c.setPosition(pos, true)
+}
+
+func (c *Controller) setPosition(pos Position, force bool) error {
 	if pos.Azimuth < 0 || pos.Azimuth > 360 || pos.Elevation < 0 || pos.Elevation > 90 {
 		return fmt.Errorf("position outside azimuth 0..360 or elevation 0..90")
 	}
@@ -110,7 +121,7 @@ func (c *Controller) SetPosition(pos Position) error {
 	c.submitMu.Lock()
 	defer c.submitMu.Unlock()
 	c.mu.Lock()
-	if c.requestedOK && angularDistance(c.requested.Azimuth, pos.Azimuth) < c.threshold && abs(c.requested.Elevation-pos.Elevation) < c.threshold {
+	if !force && c.requestedOK && angularDistance(c.requested.Azimuth, pos.Azimuth) < c.threshold && abs(c.requested.Elevation-pos.Elevation) < c.threshold {
 		c.mu.Unlock()
 		return nil
 	}
@@ -143,6 +154,8 @@ func (c *Controller) Position() Position {
 }
 
 func (c *Controller) Status() Status {
+	c.refreshActualFromDevice(statusRefreshTimeout)
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	status := Status{
@@ -169,6 +182,26 @@ func (c *Controller) Status() Status {
 		status.State = "STANDBY"
 	}
 	return status
+}
+
+func (c *Controller) refreshActualFromDevice(timeout time.Duration) {
+	if timeout <= 0 {
+		return
+	}
+	c.statusMu.Lock()
+	defer c.statusMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	devicePosition, err := c.device.Position(ctx)
+	if err != nil {
+		return
+	}
+	logical := c.transform.FromCamera(CameraPosition{Pan: devicePosition.Pan, Tilt: devicePosition.Tilt})
+	c.mu.Lock()
+	c.actual = logical
+	c.actualOK = true
+	c.mu.Unlock()
 }
 
 func (c *Controller) SetTracking(tracking bool) {

@@ -17,6 +17,7 @@ import (
 type Controller interface {
 	Status() rotator.Status
 	SetPosition(rotator.Position) error
+	SetPositionForced(rotator.Position) error
 	Park() error
 	Reset() error
 }
@@ -101,27 +102,41 @@ func (s *Server) handleManualMove(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 	var payload struct {
-		Direction string `json:"direction"`
+		Direction     string  `json:"direction"`
+		AzimuthStep   float64 `json:"azimuth_step"`
+		ElevationStep float64 `json:"elevation_step"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 		writeError(writer, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+	azimuthStep := payload.AzimuthStep
+	if azimuthStep <= 0 {
+		azimuthStep = s.manualStep
+	}
+	elevationStep := payload.ElevationStep
+	if elevationStep <= 0 {
+		elevationStep = s.manualStep
+	}
+	if azimuthStep <= 0 || elevationStep <= 0 || azimuthStep > 360 || elevationStep > 90 {
+		writeError(writer, http.StatusBadRequest, "step must be greater than 0 and within azimuth 360 / elevation 90 degrees")
+		return
+	}
 	current := s.controller.Status().Actual
 	switch strings.ToLower(payload.Direction) {
 	case "left":
-		current.Azimuth = normalize360(current.Azimuth - s.manualStep)
+		current.Azimuth = normalize360(current.Azimuth - azimuthStep)
 	case "right":
-		current.Azimuth = normalize360(current.Azimuth + s.manualStep)
+		current.Azimuth = normalize360(current.Azimuth + azimuthStep)
 	case "up":
-		current.Elevation = clamp(current.Elevation+s.manualStep, 0, 90)
+		current.Elevation = nextElevation(current.Elevation, elevationStep)
 	case "down":
-		current.Elevation = clamp(current.Elevation-s.manualStep, 0, 90)
+		current.Elevation = previousElevation(current.Elevation, elevationStep)
 	default:
 		writeError(writer, http.StatusBadRequest, "direction must be left, right, up, or down")
 		return
 	}
-	if err := s.controller.SetPosition(current); err != nil {
+	if err := s.controller.SetPositionForced(current); err != nil {
 		writeError(writer, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -153,6 +168,11 @@ func (s *Server) handleReset(writer http.ResponseWriter, request *http.Request) 
 	}
 	s.resetRunning = true
 	s.resetMu.Unlock()
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusAccepted)
+	s.writeStatus(writer)
+
 	go func() {
 		defer func() {
 			s.resetMu.Lock()
@@ -163,12 +183,14 @@ func (s *Server) handleReset(writer http.ResponseWriter, request *http.Request) 
 			log.Printf("web UI reset failed: %v", err)
 		}
 	}()
-	writer.WriteHeader(http.StatusAccepted)
-	s.writeStatus(writer)
 }
 
 func (s *Server) writeStatus(writer http.ResponseWriter) {
 	status := s.controller.Status()
+	if s.isResetRunning() {
+		status.Resetting = true
+		status.State = "RESETTING"
+	}
 	response := struct {
 		State         string           `json:"state"`
 		Azimuth       float64          `json:"azimuth"`
@@ -208,6 +230,12 @@ func (s *Server) writeStatus(writer http.ResponseWriter) {
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+func (s *Server) isResetRunning() bool {
+	s.resetMu.Lock()
+	defer s.resetMu.Unlock()
+	return s.resetRunning
+}
+
 func writeError(writer http.ResponseWriter, status int, message string) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(status)
@@ -224,6 +252,20 @@ func normalize360(value float64) float64 {
 
 func clamp(value, minimum, maximum float64) float64 {
 	return math.Max(minimum, math.Min(maximum, value))
+}
+
+func nextElevation(current, step float64) float64 {
+	if current+step >= 90 {
+		return 90
+	}
+	return clamp(current+step, 0, 90)
+}
+
+func previousElevation(current, step float64) float64 {
+	if current-step <= 0 {
+		return 0
+	}
+	return clamp(current-step, 0, 90)
 }
 
 var indexHTML = fmt.Sprintf(`<!doctype html>
@@ -252,6 +294,9 @@ h1 { font-size:24px; margin:0 0 6px; letter-spacing:0; }
 .gauge-plot { display:grid; place-items:center; min-height:270px; }
 .gauge svg { width:min(280px, 100%%); height:auto; overflow:visible; }
 .gauge-controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+.step-control { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; margin-top:12px; color:#94a3b8; font-size:13px; }
+.step-control input { width:100%%; box-sizing:border-box; appearance:textfield; border:1px solid #334155; border-radius:8px; background:#111827; color:#f8fafc; padding:9px 10px; font:inherit; font-variant-numeric:tabular-nums; }
+.step-control input:focus { outline:2px solid #0ea5e9; outline-offset:1px; }
 .needle { stroke:#fb3b32; stroke-width:6; stroke-linecap:round; filter:drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
 .needle-tail { stroke:#cbd5e1; stroke-width:2; stroke-linecap:round; }
 .hub { fill:#fb3b32; stroke:#ef4444; stroke-width:2; }
@@ -308,6 +353,11 @@ button.warn { border-color:#b45309; background:#78350f; }
             <button data-dir="left">↺ CCW</button>
             <button data-dir="right">CW ↻</button>
           </div>
+          <label class="step-control">
+            <span>AZ Step</span>
+            <input id="azStep" type="number" min="0.1" max="360" step="0.1" value="5">
+            <span>°</span>
+          </label>
         </div>
         <div class="gauge">
           <div class="label">Elevation</div>
@@ -331,6 +381,11 @@ button.warn { border-color:#b45309; background:#78350f; }
             <button data-dir="up">↑ UP</button>
             <button data-dir="down">DOWN ↓</button>
           </div>
+          <label class="step-control">
+            <span>EL Step</span>
+            <input id="elStep" type="number" min="0.1" max="90" step="0.1" value="5">
+            <span>°</span>
+          </label>
         </div>
       </div>
     </section>
@@ -340,7 +395,6 @@ button.warn { border-color:#b45309; background:#78350f; }
         <button class="warn wide" id="reset">Reset Position</button>
       </div>
       <div class="meta">
-        <div class="row"><span>Manual step</span><span id="step">-</span></div>
         <div class="row"><span>Rotctl</span><span id="rotctl">-</span></div>
         <div class="row"><span>Version</span><span id="version">-</span></div>
       </div>
@@ -355,6 +409,8 @@ const azTail = document.getElementById("azTail");
 const elNeedle = document.getElementById("elNeedle");
 const elTail = document.getElementById("elTail");
 const errorBox = document.getElementById("error");
+const azStepInput = document.getElementById("azStep");
+const elStepInput = document.getElementById("elStep");
 function setText(id, value) { document.getElementById(id).textContent = value; }
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function setLineEnd(line, x, y) {
@@ -388,7 +444,6 @@ function render(status) {
   setText("az", azEl.azimuth.toFixed(1));
   setText("el", azEl.elevation.toFixed(1));
   setText("atomcam", status.atomcam_url || "-");
-  setText("step", (status.manual_step || 0).toFixed(1) + "°");
   setText("rotctl", status.rotctl_address || "-");
   setText("version", status.version || "-");
   const badge = document.getElementById("state");
@@ -396,6 +451,12 @@ function render(status) {
   badge.className = "badge " + (status.state || "STANDBY");
   errorBox.textContent = status.last_error || "";
   updateGauges(azEl.azimuth, azEl.elevation);
+}
+function readStep(input, fallback, max) {
+  const value = Number.parseFloat(input.value);
+  if (Number.isFinite(value) && value > 0) return clamp(value, 0.1, max);
+  input.value = fallback.toFixed(1);
+  return fallback;
 }
 async function refresh() {
   try { render(await request("/api/status")); }
@@ -413,7 +474,11 @@ async function command(path, body) {
   }
 }
 document.querySelectorAll("[data-dir]").forEach(button => {
-  button.addEventListener("click", () => command("/api/manual-move", { direction: button.dataset.dir }));
+  button.addEventListener("click", () => command("/api/manual-move", {
+    direction: button.dataset.dir,
+    azimuth_step: readStep(azStepInput, 5, 360),
+    elevation_step: readStep(elStepInput, 5, 90)
+  }));
 });
 document.getElementById("park").addEventListener("click", () => command("/api/park"));
 document.getElementById("reset").addEventListener("click", () => command("/api/reset"));

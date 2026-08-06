@@ -30,6 +30,10 @@ func (f *fakeController) SetPosition(position rotator.Position) error {
 	return nil
 }
 
+func (f *fakeController) SetPositionForced(position rotator.Position) error {
+	return f.SetPosition(position)
+}
+
 func (f *fakeController) Park() error {
 	f.parked = true
 	return nil
@@ -88,6 +92,34 @@ func TestManualMoveEndpoint(t *testing.T) {
 	}
 }
 
+func TestManualMoveSnapsElevationToBoundary(t *testing.T) {
+	controller := &fakeController{status: rotator.Status{
+		State:    "STANDBY",
+		Actual:   rotator.Position{Azimuth: 10, Elevation: 86},
+		ActualOK: true,
+	}}
+	server := New(controller, Options{ManualStep: 5})
+	request := httptest.NewRequest(http.MethodPost, "/api/manual-move", bytes.NewBufferString(`{"direction":"up","elevation_step":3}`))
+	recorder := httptest.NewRecorder()
+	server.handleManualMove(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if controller.set.Elevation != 89 {
+		t.Fatalf("set elevation = %v, want 89", controller.set.Elevation)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/manual-move", bytes.NewBufferString(`{"direction":"up","elevation_step":3}`))
+	recorder = httptest.NewRecorder()
+	server.handleManualMove(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if controller.set.Elevation != 90 {
+		t.Fatalf("set elevation = %v, want 90", controller.set.Elevation)
+	}
+}
+
 func TestResetEndpointReturnsAccepted(t *testing.T) {
 	controller := &fakeController{reset: make(chan struct{}, 1)}
 	server := New(controller, Options{ManualStep: 5})
@@ -96,6 +128,9 @@ func TestResetEndpointReturnsAccepted(t *testing.T) {
 	server.handleReset(recorder, request)
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("status code = %d", recorder.Code)
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"state":"RESETTING"`)) {
+		t.Fatalf("response %s does not contain RESETTING state", recorder.Body.String())
 	}
 	select {
 	case <-controller.reset:

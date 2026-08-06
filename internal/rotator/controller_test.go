@@ -88,6 +88,34 @@ func TestMoveThresholdUsesCircularAzimuthDistance(t *testing.T) {
 	}
 }
 
+func TestForcedPositionBypassesMoveThreshold(t *testing.T) {
+	device := &blockingDevice{moves: make(chan atomcam.Position, 1), release: make(chan struct{}, 1)}
+	controller := New(device, Transform{}, Options{Threshold: 5})
+	if err := controller.SetPosition(Position{Azimuth: 10, Elevation: 86}); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.SetPositionForced(Position{Azimuth: 10, Elevation: 90}); err != nil {
+		t.Fatal(err)
+	}
+	first := <-controller.pending
+	if first.Elevation != 90 {
+		t.Fatalf("forced target elevation = %v, want 90", first.Elevation)
+	}
+}
+
+func TestStatusRefreshesActualPositionFromDevice(t *testing.T) {
+	device := &blockingDevice{moves: make(chan atomcam.Position, 1), release: make(chan struct{}, 1)}
+	controller := New(device, Transform{PanOffset: 180, PanScale: 1, TiltHorizon: 0, TiltScale: 1}, Options{})
+
+	status := controller.Status()
+	if !status.ActualOK {
+		t.Fatal("status actual position was not refreshed")
+	}
+	if status.Actual.Azimuth != 180 || status.Actual.Elevation != 90 {
+		t.Fatalf("status actual = %+v, want az=180 el=90", status.Actual)
+	}
+}
+
 func TestResetMovesToConfiguredRawCameraPosition(t *testing.T) {
 	device := &blockingDevice{moves: make(chan atomcam.Position, 1), release: make(chan struct{}, 1)}
 	resetPosition := CameraPosition{Pan: 42, Tilt: 180}
