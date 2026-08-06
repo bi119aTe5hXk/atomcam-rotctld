@@ -161,10 +161,10 @@ func (c *Controller) Status() Status {
 	switch {
 	case status.Resetting:
 		status.State = "RESETTING"
-	case status.Tracking:
-		status.State = "TRACKING"
 	case status.Moving:
 		status.State = "MOVING"
+	case status.Tracking:
+		status.State = "TRACKING"
 	default:
 		status.State = "STANDBY"
 	}

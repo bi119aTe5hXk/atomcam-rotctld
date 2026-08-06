@@ -340,9 +340,6 @@ button.warn { border-color:#b45309; background:#78350f; }
         <button class="warn wide" id="reset">Reset Position</button>
       </div>
       <div class="meta">
-        <div class="row"><span>Tracking</span><span id="tracking">-</span></div>
-        <div class="row"><span>Moving</span><span id="moving">-</span></div>
-        <div class="row"><span>Resetting</span><span id="resetting">-</span></div>
         <div class="row"><span>Manual step</span><span id="step">-</span></div>
         <div class="row"><span>Rotctl</span><span id="rotctl">-</span></div>
         <div class="row"><span>Version</span><span id="version">-</span></div>
@@ -359,7 +356,6 @@ const elNeedle = document.getElementById("elNeedle");
 const elTail = document.getElementById("elTail");
 const errorBox = document.getElementById("error");
 function setText(id, value) { document.getElementById(id).textContent = value; }
-function boolText(value) { return value ? "YES" : "NO"; }
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function setLineEnd(line, x, y) {
   line.setAttribute("x2", x.toFixed(2));
@@ -392,9 +388,6 @@ function render(status) {
   setText("az", azEl.azimuth.toFixed(1));
   setText("el", azEl.elevation.toFixed(1));
   setText("atomcam", status.atomcam_url || "-");
-  setText("tracking", boolText(status.tracking));
-  setText("moving", boolText(status.moving));
-  setText("resetting", boolText(status.resetting));
   setText("step", (status.manual_step || 0).toFixed(1) + "°");
   setText("rotctl", status.rotctl_address || "-");
   setText("version", status.version || "-");
