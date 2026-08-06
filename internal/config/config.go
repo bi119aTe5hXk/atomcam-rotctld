@@ -9,46 +9,52 @@ import (
 )
 
 type Config struct {
-	ListenAddress   string
-	AtomCamURL      string
-	PanOffset       float64
-	PanScale        float64
-	TiltHorizon     float64
-	TiltScale       float64
-	MoveSpeed       int
-	MovePriority    int
-	MoveThreshold   float64
-	MoveTimeout     time.Duration
-	ResetTimeout    time.Duration
-	ResetOnStart    bool
-	ResetOnSession  bool
-	ResetCameraPan  float64
-	ResetCameraTilt float64
-	LogCommands     bool
-	ParkAzimuth     float64
-	ParkElevation   float64
+	ListenAddress    string
+	WebListenAddress string
+	AtomCamURL       string
+	PanOffset        float64
+	PanScale         float64
+	TiltHorizon      float64
+	TiltScale        float64
+	MoveSpeed        int
+	MovePriority     int
+	MoveThreshold    float64
+	MoveTimeout      time.Duration
+	ResetTimeout     time.Duration
+	ResetOnStart     bool
+	ResetOnSession   bool
+	ResetSessionMode string
+	ResetCameraPan   float64
+	ResetCameraTilt  float64
+	LogCommands      bool
+	ParkAzimuth      float64
+	ParkElevation    float64
+	ManualStep       float64
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddress:   envString("LISTEN_ADDRESS", "0.0.0.0:4533"),
-		AtomCamURL:      strings.TrimRight(strings.TrimSpace(os.Getenv("ATOMCAM_URL")), "/"),
-		PanOffset:       envFloat("PAN_OFFSET", 180),
-		PanScale:        envFloat("PAN_SCALE", 1),
-		TiltHorizon:     envFloat("TILT_HORIZON", 0),
-		TiltScale:       envFloat("TILT_SCALE", 1),
-		MoveSpeed:       envInt("MOVE_SPEED", 5),
-		MovePriority:    envInt("MOVE_PRIORITY", 1),
-		MoveThreshold:   envFloat("MOVE_THRESHOLD", 3),
-		MoveTimeout:     envDuration("MOVE_TIMEOUT", 20*time.Second),
-		ResetTimeout:    envDuration("RESET_TIMEOUT", 90*time.Second),
-		ResetOnStart:    envBool("RESET_ON_START", false),
-		ResetOnSession:  envBool("RESET_ON_SESSION", false),
-		ResetCameraPan:  envFloat("RESET_CAMERA_PAN", 180),
-		ResetCameraTilt: envFloat("RESET_CAMERA_TILT", 90),
-		LogCommands:     envBool("LOG_COMMANDS", true),
-		ParkAzimuth:     envFloat("PARK_AZIMUTH", 0),
-		ParkElevation:   envFloat("PARK_ELEVATION", 0),
+		ListenAddress:    envString("LISTEN_ADDRESS", "0.0.0.0:4533"),
+		WebListenAddress: envString("WEB_LISTEN_ADDRESS", "0.0.0.0:8080"),
+		AtomCamURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("ATOMCAM_URL")), "/"),
+		PanOffset:        envFloat("PAN_OFFSET", 180),
+		PanScale:         envFloat("PAN_SCALE", 1),
+		TiltHorizon:      envFloat("TILT_HORIZON", 0),
+		TiltScale:        envFloat("TILT_SCALE", 1),
+		MoveSpeed:        envInt("MOVE_SPEED", 5),
+		MovePriority:     envInt("MOVE_PRIORITY", 1),
+		MoveThreshold:    envFloat("MOVE_THRESHOLD", 3),
+		MoveTimeout:      envDuration("MOVE_TIMEOUT", 20*time.Second),
+		ResetTimeout:     envDuration("RESET_TIMEOUT", 90*time.Second),
+		ResetOnStart:     envBool("RESET_ON_START", false),
+		ResetOnSession:   envBool("RESET_ON_SESSION", false),
+		ResetSessionMode: strings.ToLower(envString("RESET_ON_SESSION_MODE", "after")),
+		ResetCameraPan:   envFloat("RESET_CAMERA_PAN", 180),
+		ResetCameraTilt:  envFloat("RESET_CAMERA_TILT", 0),
+		LogCommands:      envBool("LOG_COMMANDS", true),
+		ParkAzimuth:      envFloat("PARK_AZIMUTH", 0),
+		ParkElevation:    envFloat("PARK_ELEVATION", 0),
+		ManualStep:       envFloat("MANUAL_STEP", 5),
 	}
 
 	if cfg.AtomCamURL == "" {
@@ -77,6 +83,9 @@ func Load() (Config, error) {
 	}
 	if cfg.ParkAzimuth < 0 || cfg.ParkAzimuth > 360 || cfg.ParkElevation < 0 || cfg.ParkElevation > 90 {
 		return Config{}, fmt.Errorf("park position must be within azimuth 0..360 and elevation 0..90")
+	}
+	if cfg.ManualStep <= 0 || cfg.ManualStep > 90 {
+		return Config{}, fmt.Errorf("MANUAL_STEP must be greater than 0 and at most 90")
 	}
 	return cfg, nil
 }

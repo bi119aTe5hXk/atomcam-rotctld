@@ -24,4 +24,10 @@ func TestDefaultReferencePoseFacesNorth(t *testing.T) {
 	if cfg.ResetCameraPan != 180 || cfg.ResetCameraTilt != 90 {
 		t.Fatalf("reset camera position = pan %v tilt %v, want pan 180 tilt 90", cfg.ResetCameraPan, cfg.ResetCameraTilt)
 	}
+	if cfg.WebListenAddress != "0.0.0.0:8080" {
+		t.Fatalf("WebListenAddress = %q, want 0.0.0.0:8080", cfg.WebListenAddress)
+	}
+	if cfg.ManualStep != 5 {
+		t.Fatalf("ManualStep = %v, want 5", cfg.ManualStep)
+	}
 }

@@ -43,6 +43,24 @@ docker compose up -d --build
 docker compose logs -f atomcam-rotctld
 ```
 
+Open the Web UI at:
+
+```text
+http://HOST_IP:8080/
+```
+
+`compose.yaml` uses the published GHCR image by default:
+
+```dotenv
+ATOMCAM_ROTCTLD_IMAGE=ghcr.io/bi119ate5hxk/atomcam-rotctld:latest
+```
+
+For a local development build, use the build override:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
 Test the protocol from another machine or container:
 
 ```sh
@@ -150,6 +168,26 @@ container with:
 docker exec satnogs-client env | grep '^SATNOGS_RIG'
 docker exec satnogs-client getent hosts rigctld
 ```
+
+## Web UI
+
+The built-in Web UI listens on port 8080 by default:
+
+```dotenv
+WEB_LISTEN_ADDRESS=0.0.0.0:8080
+MANUAL_STEP=5
+```
+
+It shows the current azimuth and elevation as both numbers and a polar plot,
+the ATOM Cam URL, rotctld listen address, and runtime state. The state is
+`STANDBY` when no Hamlib tracking session is active and `TRACKING` while a
+rotctld client session has opened capabilities with `\dump_state`. `RESETTING`
+and `MOVING` are shown while those operations are active.
+
+The directional buttons adjust logical azimuth/elevation by `MANUAL_STEP`
+degrees. Left/right change azimuth; up/down change elevation. `Park` queues the
+configured park position. `Reset Position` runs the same reset path as Hamlib
+`R 1`.
 
 ## Reset and movement behavior
 

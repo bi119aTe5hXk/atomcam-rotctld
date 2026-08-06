@@ -37,10 +37,24 @@ type Controller struct {
 	moving        bool
 	resetting     bool
 	resetDone     chan struct{}
+	tracking      bool
 	lastError     error
 	lastMove      time.Time
 	pending       chan Position
 	workerContext context.Context
+}
+
+type Status struct {
+	State       string
+	Actual      Position
+	ActualOK    bool
+	Requested   Position
+	RequestedOK bool
+	Moving      bool
+	Resetting   bool
+	Tracking    bool
+	LastError   string
+	LastMove    time.Time
 }
 
 type Options struct {
@@ -126,6 +140,41 @@ func (c *Controller) Position() Position {
 		return c.requested
 	}
 	return Position{}
+}
+
+func (c *Controller) Status() Status {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	status := Status{
+		Actual:      c.actual,
+		ActualOK:    c.actualOK,
+		Requested:   c.requested,
+		RequestedOK: c.requestedOK,
+		Moving:      c.moving,
+		Resetting:   c.resetting,
+		Tracking:    c.tracking,
+		LastMove:    c.lastMove,
+	}
+	if c.lastError != nil {
+		status.LastError = c.lastError.Error()
+	}
+	switch {
+	case status.Resetting:
+		status.State = "RESETTING"
+	case status.Tracking:
+		status.State = "TRACKING"
+	case status.Moving:
+		status.State = "MOVING"
+	default:
+		status.State = "STANDBY"
+	}
+	return status
+}
+
+func (c *Controller) SetTracking(tracking bool) {
+	c.mu.Lock()
+	c.tracking = tracking
+	c.mu.Unlock()
 }
 
 func (c *Controller) Reset() error {

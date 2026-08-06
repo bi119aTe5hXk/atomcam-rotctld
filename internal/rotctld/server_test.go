@@ -11,11 +11,13 @@ import (
 )
 
 type fakeRotator struct {
-	position    rotator.Position
-	reset       bool
-	resetSignal chan struct{}
-	stopped     bool
-	parked      bool
+	position           rotator.Position
+	reset              bool
+	resetSignal        chan struct{}
+	sessionResetSignal chan struct{}
+	stopped            bool
+	parked             bool
+	tracking           bool
 }
 
 func (f *fakeRotator) SetPosition(position rotator.Position) error {
@@ -33,7 +35,17 @@ func (f *fakeRotator) Reset() error {
 	}
 	return nil
 }
-func (f *fakeRotator) Stop() { f.stopped = true }
+func (f *fakeRotator) SessionReset() error {
+	if f.sessionResetSignal != nil {
+		select {
+		case f.sessionResetSignal <- struct{}{}:
+		default:
+		}
+	}
+	return nil
+}
+func (f *fakeRotator) SetTracking(tracking bool) { f.tracking = tracking }
+func (f *fakeRotator) Stop()                     { f.stopped = true }
 func (f *fakeRotator) Park() error {
 	f.parked = true
 	return nil
